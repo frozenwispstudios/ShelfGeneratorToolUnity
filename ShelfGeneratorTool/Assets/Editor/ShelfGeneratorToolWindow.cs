@@ -28,7 +28,6 @@ public class ShelfGeneratorToolWindow : EditorWindow
     SerializedProperty propPrefabs;
     SerializedProperty propLocalShelfScale;
 
-
     void OnEnable()
     {
         SO = new SerializedObject(this);
@@ -50,7 +49,16 @@ public class ShelfGeneratorToolWindow : EditorWindow
 
     public static void ClearShelf()
     {
-        //checks if a list of objects that have been generated on the shelf are loaded and if so destorys them
+        //loop though all selected objects and delete them from the shelf
+        foreach (GameObject parentShelfs in Selection.gameObjects)
+        {
+            int currentChildCount = parentShelfs.transform.childCount;
+            for (int i = 0; i < currentChildCount; i++)
+            {
+                Undo.RecordObject(parentShelfs.transform.GetChild(0).gameObject.transform, "New snaptrhing");
+                Object.DestroyImmediate(parentShelfs.transform.GetChild(0).gameObject);
+            }
+        }
     }
 
     public static void GenerateShelf(int _prefabCount, GameObject[] _prefabs, float bufferSpaceMin, float bufferSpaceMax)//this is a Validate Function for the funciton above
@@ -67,11 +75,10 @@ public class ShelfGeneratorToolWindow : EditorWindow
             Vector3 rndShelfSize = rndShelf.bounds.size;
 
             float CurrentX = 0;
-            Debug.Log(rndShelfSize);
-            //Create a list of childern to clean when you want to generate again 
+            float CurrentZ = 0;
 
-            //get the bounding box of the prefab that i want to spawn and get its height to place it there when spawning
-            //get the length of the shelf/surfaceand place X amount along it until you go of the length
+            //Create a list of childern to clean when you want to generate again 
+            ClearShelf();
 
             for (int i = 0; i < _prefabCount; i++)
             {
@@ -84,27 +91,29 @@ public class ShelfGeneratorToolWindow : EditorWindow
                 Vector3 rndCentre = rnd.bounds.center;
                 Vector3 rndSize =  rnd.bounds.size;
 
+                //make the first one spawn with out the buffer
                 if (i != 0) { CurrentX += rndSize.x + _bufferSpace; }
+                if (i != 0) { CurrentZ += rndSize.z + _bufferSpace; }
 
                 //make sure it can fit on the shelf
-                if (CurrentX <= parentShelfs.transform.position.x + rndShelfSize.x + rndSize.x)
+                if (CurrentX <  rndShelfSize.x - rndSize.x)
                 {
-                    Debug.Log("Stop");
-
                     //spawn object
                     GameObject spawnedObject = (GameObject)PrefabUtility.InstantiatePrefab(currentPrefab);
                     Undo.RegisterCreatedObjectUndo(spawnedObject, "Undo Spawned Object");//make this object undoable/Ctrl + Z
 
-                    float spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + rndSize.y / 2;
-                    float spawnX = (parentShelfs.transform.position.x - (rndShelfSize.x / 2) + rndSize.x) + CurrentX;
-                    spawnedObject.transform.position = new Vector3(spawnX, spawnY, parentShelfs.transform.position.z);
-                    //spawnedObject.transform.parent = parentShelfs.transform;
+                    float spawnX = (parentShelfs.transform.position.x - (rndShelfSize.x / 2) + rndSize.x) + CurrentX;//spawn at the start of the object
+                    float spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + rndSize.y / 2;//spawn on top of object
+                    //float spawnZ = (parentShelfs.transform.position.z + rndSize.z) + CurrentZ;
 
-                    //spawnedObject.transform.rotation = parentShelfs.transform.rotation;//rotation;
-                    //get range to spawn them in here generating it randomly
+                    float spawnZ = (parentShelfs.transform.position.z);
+                    spawnedObject.transform.position = new Vector3(spawnX, spawnY, spawnZ);
+                    spawnedObject.transform.localRotation = parentShelfs.transform.localRotation;
+
+                    spawnedObject.transform.parent = parentShelfs.transform;
                 }
             }
-            //gameobj.transform.position = placement math here
+            Debug.Log(parentShelfs.transform.childCount);
         }
     }
 
@@ -117,6 +126,13 @@ public class ShelfGeneratorToolWindow : EditorWindow
         {
             GenerateShelf(prefabCount,prefabs,bufferSpaceMin, bufferSpaceMax);
         }
+
+        if (GUILayout.Button("Clear Shelf", GUILayout.Height(50)) && Selection.gameObjects.Length > 0)
+        {
+            ClearShelf();
+        }
+
+        
 
         //Update Editor properties/variables
         SO.Update();
