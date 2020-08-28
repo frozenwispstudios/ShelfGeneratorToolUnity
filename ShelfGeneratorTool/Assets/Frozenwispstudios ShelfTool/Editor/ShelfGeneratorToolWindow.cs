@@ -1,23 +1,18 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEditor;
-using System.Linq;
 
 public class ShelfGeneratorToolWindow : EditorWindow
 {
-    [MenuItem("Tools/Shelf Generator Tool")]
+    [MenuItem("Tools/Frozenwispstudios/Shelf Generator Tool")]
     public static void ShelfGeneratorTool() => GetWindow<ShelfGeneratorToolWindow>("Shelf Generator Tool").minSize = new Vector2(415f,300f);//creates editor Window with min size settings
     
     public bool editMode = false;
     public int prefabCount;
-    public float bufferSpaceMin = 0;
-    public float bufferSpaceMax = 3;
+    public float bufferSpaceMin = 0.05f;
+    public float bufferSpaceMax = 0.1f;
 
     public float bufferSpawnSpaceMinLimit = 0;
-    public float bufferSpawnSpaceMaxLimit = 10;
-
-    public bool localShelfScale;
+    public float bufferSpawnSpaceMaxLimit = 1;
 
     public GameObject[] prefabs;
 
@@ -26,16 +21,15 @@ public class ShelfGeneratorToolWindow : EditorWindow
     SerializedProperty propbufferSpaceMin;
     SerializedProperty propbufferSpaceMax;
     SerializedProperty propPrefabs;
-    SerializedProperty propLocalShelfScale;
 
     void OnEnable()
     {
+        //init properties
         SO = new SerializedObject(this);
         propPrefabCount = SO.FindProperty("prefabCount");
         propbufferSpaceMin = SO.FindProperty("bufferSpaceMin");
         propbufferSpaceMax = SO.FindProperty("bufferSpaceMax");
         propPrefabs = SO.FindProperty("prefabs");
-        propLocalShelfScale = SO.FindProperty("localShelfScale");
 
         Selection.selectionChanged += Repaint;//updates GUI to be active
         SceneView.duringSceneGui += DuringSceneGUI;//draw live in scene
@@ -43,7 +37,8 @@ public class ShelfGeneratorToolWindow : EditorWindow
 
     void OnDisable()
     {
-        Selection.selectionChanged -= Repaint;//updates GUI to be deactive
+        //updates GUI to be deactive on closing of window
+        Selection.selectionChanged -= Repaint;
         SceneView.duringSceneGui -= DuringSceneGUI;
     }
 
@@ -55,7 +50,7 @@ public class ShelfGeneratorToolWindow : EditorWindow
             int currentChildCount = parentShelfs.transform.childCount;
             for (int i = 0; i < currentChildCount; i++)
             {
-                Undo.RecordObject(parentShelfs.transform.GetChild(0).gameObject.transform, "New snaptrhing");
+                Undo.RecordObject(parentShelfs.transform.GetChild(0).transform, "UndoClear");
                 Object.DestroyImmediate(parentShelfs.transform.GetChild(0).gameObject);
             }
         }
@@ -66,16 +61,16 @@ public class ShelfGeneratorToolWindow : EditorWindow
         //gets the game objects selected in the scene in the editor 
         foreach (GameObject parentShelfs in Selection.gameObjects)
         {
-            //Shelf/Parent spawn point
+            //Make parent objects undoable
             Undo.RecordObject(parentShelfs.transform, "UNDO_STR_SNAP");
 
             //get shelf render bounds
             Renderer rndShelf = parentShelfs.GetComponent<Renderer>();
-            Vector3 rndShelfCentre = rndShelf.bounds.center;
             Vector3 rndShelfSize = rndShelf.bounds.size;
 
             float CurrentX = 0;
             float CurrentZ = 0;
+            GameObject previousObject = null;
 
             //Create a list of childern to clean when you want to generate again 
             ClearShelf();
@@ -88,32 +83,46 @@ public class ShelfGeneratorToolWindow : EditorWindow
 
                 //get the render of the object we are spawning
                 Renderer rnd = currentPrefab.GetComponent<Renderer>();
-                Vector3 rndCentre = rnd.bounds.center;
-                Vector3 rndSize =  rnd.bounds.size;
+                Vector3 rndSize = rnd.bounds.size;
+                Vector3 currentRndSize = rnd.bounds.size;
+
+                //check if the previous prefab spawn is bigger so that the next object spawns correctly
+                if (previousObject != null)
+                {
+                    if (previousObject.GetComponent<Renderer>().bounds.size.x > currentPrefab.GetComponent<Renderer>().bounds.size.x)
+                    {
+                        //get the render of the object we are spawning
+                        rnd = previousObject.GetComponent<Renderer>();
+                        rndSize = rnd.bounds.size;
+                    }
+                }
 
                 //make the first one spawn with out the buffer
-                if (i != 0) { CurrentX += rndSize.x + _bufferSpace; }
-                if (i != 0) { CurrentZ += rndSize.z + _bufferSpace; }
+                if (i != 0) 
+                {
+                    CurrentX += rndSize.x + _bufferSpace;
+                    CurrentZ += rndSize.z + _bufferSpace;
+                }
 
                 //make sure it can fit on the shelf
-                if (CurrentX <  rndShelfSize.x - rndSize.x)
+                if (CurrentX <  rndShelfSize.x - rndSize.x)//end of spawning
                 {
                     //spawn object
                     GameObject spawnedObject = (GameObject)PrefabUtility.InstantiatePrefab(currentPrefab);
                     Undo.RegisterCreatedObjectUndo(spawnedObject, "Undo Spawned Object");//make this object undoable/Ctrl + Z
 
-                    float spawnX = (parentShelfs.transform.position.x - (rndShelfSize.x / 2) + rndSize.x) + CurrentX;//spawn at the start of the object
-                    float spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + rndSize.y / 2;//spawn on top of object
+                    //2.160672
+                    float spawnX = (parentShelfs.transform.position.x - (rndShelfSize.x / 2) + rndSize.x) + CurrentX;//spawn at the start of the object then add the difference between them
+                    float spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + currentRndSize.y / 2;//spawn on top of object
                     //float spawnZ = (parentShelfs.transform.position.z + rndSize.z) + CurrentZ;
-
                     float spawnZ = (parentShelfs.transform.position.z);
-                    spawnedObject.transform.position = new Vector3(spawnX, spawnY, spawnZ);
-                    spawnedObject.transform.localRotation = parentShelfs.transform.localRotation;
 
+                    spawnedObject.transform.position = new Vector3(spawnX, spawnY, spawnZ);
                     spawnedObject.transform.parent = parentShelfs.transform;
+
+                    previousObject = currentPrefab;
                 }
             }
-            Debug.Log(parentShelfs.transform.childCount);
         }
     }
 
@@ -132,8 +141,6 @@ public class ShelfGeneratorToolWindow : EditorWindow
             ClearShelf();
         }
 
-        
-
         //Update Editor properties/variables
         SO.Update();
         EditorGUILayout.PropertyField(propPrefabCount, GUILayout.ExpandWidth(false));
@@ -147,16 +154,14 @@ public class ShelfGeneratorToolWindow : EditorWindow
         EditorGUILayout.BeginVertical();
         EditorGUILayout.MinMaxSlider("Spawn Space",ref bufferSpaceMin, ref bufferSpaceMax, bufferSpawnSpaceMinLimit, bufferSpawnSpaceMaxLimit, GUILayout.ExpandWidth(false));
         EditorGUILayout.EndVertical();
-
-
-        EditorGUILayout.PropertyField(propLocalShelfScale);
         SO.ApplyModifiedProperties();
-
     }
 
     void DuringSceneGUI(SceneView sceneView)
     {
+        //Create a start and end function for the mesh you want to spawn on
+        //start of where the prefabs will spawn and the end for where they will stop as there is not more space
 
-
+        //Use that to draw two lines on one each end of the shelf
     }
 }
