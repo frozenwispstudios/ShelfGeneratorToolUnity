@@ -7,7 +7,7 @@ public class ShelfGeneratorToolWindow : EditorWindow
     public static void ShelfGeneratorTool() => GetWindow<ShelfGeneratorToolWindow>("Shelf Generator Tool").minSize = new Vector2(415f,300f);//creates editor Window with min size settings
     
     public bool editMode = false;
-    public int prefabCount;
+    public int prefabCount = 5;
     public float bufferSpaceMin = 0.05f;
     public float bufferSpaceMax = 0.1f;
 
@@ -56,6 +56,7 @@ public class ShelfGeneratorToolWindow : EditorWindow
         }
     }
 
+    
     public static void GenerateShelf(int _prefabCount, GameObject[] _prefabs, float bufferSpaceMin, float bufferSpaceMax)//this is a Validate Function for the funciton above
     {
         //gets the game objects selected in the scene in the editor 
@@ -85,6 +86,7 @@ public class ShelfGeneratorToolWindow : EditorWindow
                 Renderer rnd = currentPrefab.GetComponent<Renderer>();
                 Vector3 rndSize = rnd.bounds.size;
                 Vector3 currentRndSize = rnd.bounds.size;
+                Vector3 currentRndCenter = rnd.bounds.center;
 
                 //check if the previous prefab spawn is bigger so that the next object spawns correctly
                 if (previousObject != null)
@@ -111,9 +113,20 @@ public class ShelfGeneratorToolWindow : EditorWindow
                     GameObject spawnedObject = (GameObject)PrefabUtility.InstantiatePrefab(currentPrefab);
                     Undo.RegisterCreatedObjectUndo(spawnedObject, "Undo Spawned Object");//make this object undoable/Ctrl + Z
 
-                    //2.160672
                     float spawnX = (parentShelfs.transform.position.x - (rndShelfSize.x / 2) + rndSize.x) + CurrentX;//spawn at the start of the object then add the difference between them
-                    float spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + currentRndSize.y / 2;//spawn on top of object
+                    float spawnY = 0f;
+
+                    //if the center*2 is not equal to the hight/2 then its equal so do prefab spawn logic else do centre/2
+                    if (currentRndCenter.y != currentRndSize.y/2)
+                    {
+                        spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + currentRndSize.y/2;//spawn on top of object
+                    }
+                    else
+                    {
+                        spawnY = parentShelfs.transform.position.y + rndShelfSize.y / 2 + currentRndCenter.y;//spawn on top of object
+                    }
+                    
+                    
                     //float spawnZ = (parentShelfs.transform.position.z + rndSize.z) + CurrentZ;
                     float spawnZ = (parentShelfs.transform.position.z);
 
@@ -125,7 +138,7 @@ public class ShelfGeneratorToolWindow : EditorWindow
             }
         }
     }
-
+    
     void OnGUI()
     {
         //GUI Layout
@@ -145,16 +158,16 @@ public class ShelfGeneratorToolWindow : EditorWindow
         SO.Update();
         EditorGUILayout.PropertyField(propPrefabCount, GUILayout.ExpandWidth(false));
         EditorGUILayout.PropertyField(propPrefabs);
-
         EditorGUILayout.BeginHorizontal();
         EditorGUILayout.PropertyField(propbufferSpaceMin, GUILayout.ExpandWidth(false));
         EditorGUILayout.PropertyField(propbufferSpaceMax , GUILayout.ExpandWidth(false));
         EditorGUILayout.EndHorizontal();
-
         EditorGUILayout.BeginVertical();
         EditorGUILayout.MinMaxSlider("Spawn Space",ref bufferSpaceMin, ref bufferSpaceMax, bufferSpawnSpaceMinLimit, bufferSpawnSpaceMaxLimit, GUILayout.ExpandWidth(false));
         EditorGUILayout.EndVertical();
         SO.ApplyModifiedProperties();
+
+        //UnityEditor.DragAndDrop
     }
 
     void DuringSceneGUI(SceneView sceneView)

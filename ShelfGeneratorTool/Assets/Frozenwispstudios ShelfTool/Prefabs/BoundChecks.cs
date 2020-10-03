@@ -20,9 +20,11 @@ public class BoundChecks : MonoBehaviour
         msg += this.name + " " + rnd.bounds.center.ToString() +"\n";
         msg += "X: " + rnd.bounds.min.x.ToString("0.0") + " to "+ rnd.bounds.max.x.ToString("0.0") + "\n";
         msg += "Z: " + rnd.bounds.min.z.ToString("0.0") + " to " + rnd.bounds.max.z.ToString("0.0") + "\n";
-        print(msg);
+        //print(msg);
 
         cover.transform.position = rnd.bounds.center;
         cover.transform.localScale = rnd.bounds.size;
+
+        print(rnd.bounds.center);
     }
 }
